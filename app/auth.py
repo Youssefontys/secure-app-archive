@@ -374,5 +374,4 @@ def report_wrong_codes(user_id, own):
                 " UPDATE users SET totp_failures = 0 FROM old WHERE users.id = %s RETURNING old.totp_failures",
                 (user_id, user_id), one=True)
     if (n := (row.totp_failures if row else 0) - own) > 0:
-        flash(f"Since your last login, your two-step code was entered incorrectly {n} time{'' if n == 1 else 's'}. "
-              "If that was not you, change your password.")
+        flash(f"Since your last login, your two-step code was entered incorrectly {n} time{'' if n == 1 else 's'}.")

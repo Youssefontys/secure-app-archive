@@ -62,7 +62,7 @@ def run():
     check("  an own typo in the next login", req(w, "/login/2fa", {"code": "000000"})[0], 400)
     req(w, "/login/2fa", {"code": fresh(secw, "testacc15")})
     check("  after the right code: how many, without the own typo", msg(req(w, "/")[1]),
-          "Since your last login, your two-step code was entered incorrectly 2 times. If that was not you, change your password.")
+          "Since your last login, your two-step code was entered incorrectly 2 times.")
     check("  database: back to 0", sql("SELECT totp_failures FROM users WHERE username = 'testacc15'"), "0")
     check("  once: the next login has none", msg(req(login("testacc15", secw), "/")[1]), "-")
 
