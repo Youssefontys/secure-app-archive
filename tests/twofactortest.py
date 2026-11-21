@@ -53,19 +53,24 @@ def run():
     check("GET /register when logged in", loc(req(a, "/register")), "302 /")
     check("register twice", req(client(), "/register", {"username": "testacc1", "password": PW})[0], 409)
 
-    print("== a wrong code since the last login")
+    print("== wrong codes since the last login")
     _, secw, _ = account("testacc15")
-    check("someone else: the password, then a wrong code", req(password_step("testacc15"), "/login/2fa", {"code": "000000"})[0], 400)
+    x = password_step("testacc15")
+    check("someone else: the password, then two wrong codes", [req(x, "/login/2fa", {"code": "000000"})[0] for _ in range(2)], [400, 400])
     w = password_step("testacc15")
     check("  not on the code page, to whoever only has the password", msg(req(w, "/login/2fa")[1]), "-")
+    check("  an own typo in the next login", req(w, "/login/2fa", {"code": "000000"})[0], 400)
     req(w, "/login/2fa", {"code": fresh(secw, "testacc15")})
-    check("  after the right code: the warning", msg(req(w, "/")[1]).startswith("Since your last login, someone who knew your password"), True)
+    check("  after the right code: how many, without the own typo", msg(req(w, "/")[1]),
+          "Since your last login, your two-step code was entered incorrectly 2 times.")
+    check("  database: back to 0", sql("SELECT totp_failures FROM users WHERE username = 'testacc15'"), "0")
     check("  once: the next login has none", msg(req(login("testacc15", secw), "/")[1]), "-")
 
     print("== set up again, new recovery code")
     # The new recovery code on an account of its own: testacc1 then needs fewer codes in a short time.
     ad, secad, _ = account("testacc2")
     check("new recovery code with a wrong code", req(ad, "/account/2fa/recovery", {"current_password": PW, "code": "000000"})[0], 400)
+    check("  a typo while logged in is not counted for the next login", sql("SELECT totp_failures FROM users WHERE username = 'testacc2'"), "0")
     check("  with a good code but without the password (MC-29)", req(ad, "/account/2fa/recovery", {"code": fresh(secad, "testacc2")})[0], 400)
     r = req(ad, "/account/2fa/recovery", {"current_password": PW, "code": fresh(secad, "testacc2")})
     recovery(r[1])
