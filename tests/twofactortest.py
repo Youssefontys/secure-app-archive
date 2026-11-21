@@ -46,11 +46,21 @@ def run():
     check("wrong code", req(a, "/login/2fa", {"code": "000000"})[0], 400)
     check("code with Arabic-Indic digits", req(a, "/login/2fa", {"code": "١٢٣٤٥٦"})[0], 400)
     check("right code", loc(req(a, "/login/2fa", {"code": fresh(sec, "testacc1")})), "302 /")
+    check("  no warning for wrong codes in this same login", msg(req(a, "/")[1]), "-")
     r = req(client(), "/login", {"username": "testacc1", "password": "x"})
     check("login wrong password", (r[0], r[2]["WWW-Authenticate"], r[2]["Retry-After"]), (400, None, None))
     check("GET /login when logged in", loc(req(a, "/login")), "302 /")
     check("GET /register when logged in", loc(req(a, "/register")), "302 /")
     check("register twice", req(client(), "/register", {"username": "testacc1", "password": PW})[0], 409)
+
+    print("== a wrong code since the last login")
+    _, secw, _ = account("testacc15")
+    check("someone else: the password, then a wrong code", req(password_step("testacc15"), "/login/2fa", {"code": "000000"})[0], 400)
+    w = password_step("testacc15")
+    check("  not on the code page, to whoever only has the password", msg(req(w, "/login/2fa")[1]), "-")
+    req(w, "/login/2fa", {"code": fresh(secw, "testacc15")})
+    check("  after the right code: the warning", msg(req(w, "/")[1]).startswith("Since your last login, someone who knew your password"), True)
+    check("  once: the next login has none", msg(req(login("testacc15", secw), "/")[1]), "-")
 
     print("== set up again, new recovery code")
     # The new recovery code on an account of its own: testacc1 then needs fewer codes in a short time.
