@@ -179,6 +179,11 @@ def login():
         session["pending_user_id"] = row.id
         session["pending_version"] = row.session_version
         session["pending_since"] = int(time.time())
+        # The code counter of this account only exists after a code that was not accepted, until the next right one;
+        # and to enter a code, you need the password. Checked now, before an own typo of this login counts too.
+        # Readable in this cookie (signed, not encrypted), but whoever is here knows the password already.
+        if query("SELECT 1 FROM auth_throttle WHERE key = %s", (throttle.limit("totp_account", row.id).key,), one=True):
+            session["pending_warning"] = True
         return redirect(url_for("auth.login_code"))
     # No two-step verification yet: after the password, set it up first (MIT-12).
     start_session(row.id, row.session_version)
@@ -215,8 +220,13 @@ def login_code():
 
     if error := check_code(user_id):
         return render_template("login_code.html", error=error.message), *throttle.refusal(error.minutes)
+    warning = session.get("pending_warning", False)
     # Only now logged in; start_session throws the half login away completely.
     start_session(user_id, session["pending_version"])
+    # Only after the right code, so not to whoever only has the password (the totp_failed lines are in the log, MIT-31).
+    if warning:
+        flash("Since your last login, someone who knew your password entered a wrong two-step code. "
+              "If that was not you, change your password.")
     events.event("login_ok", user_id=user_id, with_2fa=True)
     return redirect(url_for("notes.index"))
 
